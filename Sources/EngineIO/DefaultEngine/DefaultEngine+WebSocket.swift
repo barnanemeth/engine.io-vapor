@@ -24,6 +24,9 @@ extension DefaultEngine {
                 handshake: Handshake(from: request),
                 transportType: .webSocket
             )
+
+            await self.connectionHandler?(client)
+
             client.webSocket = webSocket
             client.state = .idle
             client.latestClientReactionTime = Date()
@@ -33,8 +36,6 @@ extension DefaultEngine {
             try? await webSocket.send(BasicTextPacket(with: .ping).rawData())
 
             await self.createWebSocketTimer(for: client)
-
-            await self.connectionHandler?(client)
 
             Logger.engineLogger.log(level: .info, "WebSocket client connected with ID: \(id)")
         }
