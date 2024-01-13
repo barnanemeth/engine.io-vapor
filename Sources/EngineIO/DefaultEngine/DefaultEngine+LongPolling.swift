@@ -104,12 +104,12 @@ extension DefaultEngine {
             client.state = .closed
             let delay = configuration.pingInterval + configuration.pingTimeout
             try? await Task.sleep(milliseconds: delay)
-            removeClient(client)
+            removeClient(client, reason: .forcefully)
         }
     }
 
     private func handleClosedPollingState(for client: EngineClient) -> any Packet {
-        defer { removeClient(client) }
+        defer { removeClient(client, reason: .forcefully) }
         return BasicTextPacket(with: .noop)
     }
 
@@ -135,7 +135,7 @@ extension DefaultEngine {
     private func checkPendingPolling(for client: EngineClient) throws {
         guard let task = client.pendingPollTask else { return }
         Logger.engineLogger.info("Polling - closing client due to duplicated poll requests, \(client.id)")
-        defer { removeClient(client) }
+        defer { removeClient(client, reason: .invalidState) }
         client.state = .closed
         task.cancel()
         throw Abort(.badRequest)

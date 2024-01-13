@@ -97,7 +97,7 @@ extension EngineClient {
         }
         Task {
             try? await webSocket.onClose.get()
-            await engine?.closeWebSocketAndRemoveClient(self)
+            await engine?.closeWebSocketAndRemoveClient(self, reason: .forcefully)
         }
     }
 

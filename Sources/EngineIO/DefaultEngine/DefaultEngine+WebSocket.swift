@@ -74,7 +74,7 @@ extension DefaultEngine {
         } catch {
             if case PacketError.invalidPacketFormat = error {
                 Logger.engineLogger.info("WebSocket - closing client due to invalid packet format \(client.id)")
-                await closeWebSocketAndRemoveClient(client)
+                await closeWebSocketAndRemoveClient(client, reason: .invalidPacket)
             }
             throw error
         }
@@ -92,7 +92,7 @@ extension DefaultEngine {
             Logger.engineLogger.debug("WebSocket - processing packets for \(client.id)")
             await processPackets(for: client, packets: [packet])
         case .close:
-            await closeWebSocketAndRemoveClient(client)
+            await closeWebSocketAndRemoveClient(client, reason: .forcefully)
         default:
             return
         }
@@ -108,7 +108,7 @@ extension DefaultEngine {
     private func handlePingState(for client: EngineClient, packet: any TextPacket) async {
         guard client.state == .upgrading(state: .waitingForPing) else {
             Logger.engineLogger.warning("WebSocket - upgrading - bad state \(client.id)")
-            await closeWebSocketAndRemoveClient(client)
+            await closeWebSocketAndRemoveClient(client, reason: .invalidState)
             return
         }
         Logger.engineLogger.debug("WebSocket - upgrading - ping probe received \(client.id)")
@@ -131,7 +131,7 @@ extension DefaultEngine {
                 guard !Task.isCancelled else { return }
                 if isClientTimedOut(client) {
                     Logger.engineLogger.info("WebSocket - closing client due to timing out \(client.id)")
-                    await closeWebSocketAndRemoveClient(client)
+                    await closeWebSocketAndRemoveClient(client, reason: .pingTimeout)
                     return
                 } else if client.state < .upgrading(state: .waitingForPing) {
                     Logger.engineLogger.trace("WebSocket - heartbeat - sending ping packet \(client.id)")

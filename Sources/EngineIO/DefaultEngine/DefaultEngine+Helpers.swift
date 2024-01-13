@@ -32,9 +32,9 @@ extension DefaultEngine {
         engineClients.first { $0.id == id }
     }
 
-    func removeClient(_ client: EngineClient) {
+    func removeClient(_ client: EngineClient, reason: DisconnectReason) {
         guard let index = engineClients.firstIndex(of: client) else { return }
-        Task { await disconnectionHandler?(client) }
+        Task { await disconnectionHandler?(client, reason) }
         client.pendingPollTask = nil
         client.webSocketTimerTask = nil
         client.changeChannel.finish()
@@ -42,9 +42,9 @@ extension DefaultEngine {
         Logger.engineLogger.info("Client disconnected \(client.id)")
     }
 
-    func closeWebSocketAndRemoveClient(_ client: EngineClient) async {
+    func closeWebSocketAndRemoveClient(_ client: EngineClient, reason: DisconnectReason) async {
         try? await client.webSocket?.close()
-        removeClient(client)
+        removeClient(client, reason: reason)
     }
 
     func isClientTimedOut(_ client: EngineClient) -> Bool {
@@ -84,6 +84,6 @@ extension DefaultEngine {
 
     func disconnectClient(_ client: Client) async {
         guard let client = client as? EngineClient else { return }
-        await closeWebSocketAndRemoveClient(client)
+        await closeWebSocketAndRemoveClient(client, reason: .forcefully)
     }
 }

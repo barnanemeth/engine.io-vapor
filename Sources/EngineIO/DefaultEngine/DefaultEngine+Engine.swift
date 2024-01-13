@@ -21,8 +21,8 @@ extension DefaultEngine: Engine {
         connectionHandler = closure
     }
 
-    public func onDisconnection(use closue: @Sendable @escaping (Client) async -> Void) {
-        disconnectionHandler = closue
+    public func onDisconnection(use closure: @Sendable @escaping (Client, DisconnectReason) async -> Void) {
+        disconnectionHandler = closure
     }
 
     public func onConnectionError(use closure: @escaping @Sendable (Request, Error) async -> Void) {

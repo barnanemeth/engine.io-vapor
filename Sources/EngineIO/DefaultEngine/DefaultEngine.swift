@@ -46,7 +46,7 @@ public actor DefaultEngine {
     // MARK: Engine
 
     var connectionHandler: (@Sendable (Client) async -> Void)?
-    var disconnectionHandler: (@Sendable (Client) async -> Void)?
+    var disconnectionHandler: (@Sendable (Client, DisconnectReason) async -> Void)?
     var connectionErrorHandler: (@Sendable (Request, Error) async -> Void)?
     var packetsHandler: (@Sendable (Client, [any Packet]) async -> Void)?
 
@@ -162,7 +162,7 @@ extension DefaultEngine {
 
     private func checkClient(_ client: EngineClient) throws {
         if client.state == .closed {
-            defer { removeClient(client) }
+            defer { removeClient(client, reason: .invalidSession) }
             throw Abort(.badRequest)
         }
     }
@@ -176,15 +176,14 @@ extension DefaultEngine {
     private func checkTimeout(for client: EngineClient) throws {
         if isClientTimedOut(client) {
             Logger.engineLogger.notice("Client timed out \(client.id)")
-            defer { removeClient(client) }
-            Task { await disconnectionHandler?(client) }
+            defer { removeClient(client, reason: .pingTimeout) }
             throw Abort(.badRequest)
         }
     }
 
     private func handleInvalidPacket(for client: EngineClient) throws {
         Logger.engineLogger.notice("Invalid packet from \(client.id)")
-        removeClient(client)
+        removeClient(client, reason: .invalidPacket)
         throw Abort(.badRequest)
     }
 
@@ -196,7 +195,7 @@ extension DefaultEngine {
                     let difference = Date().timeIntervalSince(client.latestClientReactionTime) * 1000
                     guard Int64(difference) > softTimedOutInterval else { continue }
                     Logger.engineLogger.notice("Client removed by cleanup \(client.id)")
-                    await self.removeClient(client)
+                    await self.removeClient(client, reason: .pingTimeout)
                 }
                 try? await Task.sleep(milliseconds: softTimedOutInterval)
             }
