@@ -15,14 +15,35 @@ public actor DefaultEngine {
     public struct Configuration {
         public static let `default` = Configuration()
 
-        public var pingInterval = 3000
-        public var pingTimeout = 2000
-        public var maxPayload = 1000000
-        public var addTrailingSlash = false
-        public var allowEIO3 = false
-        public var allowUpgrades = true
+        public var pingInterval: Int
+        public var pingTimeout: Int
+        public var maxPayload: Int
+        public var addTrailingSlash: Bool
+        public var allowEIO3: Bool
+        public var allowUpgrades: Bool
         public var allowRequest: ((Request) throws -> Void)?
         public var cookie: CookieOptions?
+        public var logLevel: Logger.Level
+
+        public init(pingInterval: Int = 3000, 
+                    pingTimeout: Int = 2000,
+                    maxPayload: Int = 1000000,
+                    addTrailingSlash: Bool = false,
+                    allowEIO3: Bool = false,
+                    allowUpgrades: Bool = true,
+                    allowRequest: ((Request) throws -> Void)? = nil,
+                    cookie: CookieOptions? = nil,
+                    logLevel: Logger.Level = .error) {
+            self.pingInterval = pingInterval
+            self.pingTimeout = pingTimeout
+            self.maxPayload = maxPayload
+            self.addTrailingSlash = addTrailingSlash
+            self.allowEIO3 = allowEIO3
+            self.allowUpgrades = allowUpgrades
+            self.allowRequest = allowRequest
+            self.cookie = cookie
+            self.logLevel = logLevel
+        }
     }
 
     // MARK: Constants
@@ -55,6 +76,8 @@ public actor DefaultEngine {
     public init(path: PathComponent = "engine.io", configuration: Configuration = .default) {
         self.configuration = configuration
         self.path = path
+
+        Logger.engineLogger.logLevel = configuration.logLevel
 
         Task { await cleanupTimedOutClients() }
     }

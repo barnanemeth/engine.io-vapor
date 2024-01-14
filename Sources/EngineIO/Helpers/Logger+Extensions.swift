@@ -9,5 +9,5 @@ import Foundation
 import Vapor
 
 extension Logger {
-    static let engineLogger = Logger(label: "engine.io")
+    static var engineLogger = Logger(label: "engine.io")
 }
