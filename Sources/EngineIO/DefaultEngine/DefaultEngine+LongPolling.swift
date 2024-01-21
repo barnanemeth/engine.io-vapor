@@ -70,7 +70,7 @@ extension DefaultEngine {
                 case .idle:
                     guard !client.packetBuffer.isEmpty else { break }
                     return client.packetBuffer
-                case .upgrading(.sendingPong):
+                case .upgrading:
                     return [BasicTextPacket(with: .noop)]
                 default:
                     break

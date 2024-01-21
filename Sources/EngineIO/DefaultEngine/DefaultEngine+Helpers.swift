@@ -48,7 +48,10 @@ extension DefaultEngine {
     }
 
     func isClientTimedOut(_ client: EngineClient) -> Bool {
-        let threshold = Double(configuration.pingInterval + configuration.pingTimeout)
+        var threshold = Double(configuration.pingInterval + configuration.pingTimeout)
+        if case .upgrading = client.state {
+            threshold *= Constant.upgradeTimeoutThresholdMultiplier
+        }
         return Date().timeIntervalSince(client.latestClientReactionTime) * 1000 > threshold
     }
 

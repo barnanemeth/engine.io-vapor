@@ -52,6 +52,7 @@ public actor DefaultEngine {
         static let okMessage = "ok"
         static let initialPingInterval = 50
         static let softIntervalMultiplier = 2
+        static let upgradeTimeoutThresholdMultiplier: Double = 3
         static let disallowedMethods: [HTTPMethod] = [.PUT, .DELETE, .PATCH]
     }
 
