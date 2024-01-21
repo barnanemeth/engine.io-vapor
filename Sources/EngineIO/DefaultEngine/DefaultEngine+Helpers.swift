@@ -69,11 +69,8 @@ extension DefaultEngine {
 
     func sendPackets(for client: EngineClient, packets: [any Packet]) async {
         Logger.engineLogger.debug("Sending packets for \(client.id), packet count: \(packets.count)")
-        switch client.transportType {
-        case .polling:
-            client.packetBuffer.append(contentsOf: packets)
-        case .webSocket:
-            guard let webSocket = client.webSocket else { return }
+        client.packetBuffer.append(contentsOf: packets)
+        if let webSocket = client.webSocket {
             defer { client.packetBuffer.removeAll() }
             for packet in packets {
                 switch packet {

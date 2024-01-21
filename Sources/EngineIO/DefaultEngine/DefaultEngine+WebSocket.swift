@@ -25,8 +25,6 @@ extension DefaultEngine {
                 transportType: .webSocket
             )
 
-            await self.connectionHandler?(client)
-
             client.webSocket = webSocket
             client.state = .idle
             client.latestClientReactionTime = Date()
@@ -36,6 +34,11 @@ extension DefaultEngine {
             try? await webSocket.send(BasicTextPacket(with: .ping).rawData())
 
             await self.createWebSocketTimer(for: client)
+
+            // Note: temporarily, just try to fix the upgrading
+            try? await Task.sleep(milliseconds: 100)
+            
+            await self.connectionHandler?(client)
 
             Logger.engineLogger.log(level: .info, "WebSocket client connected with ID: \(id)")
         }

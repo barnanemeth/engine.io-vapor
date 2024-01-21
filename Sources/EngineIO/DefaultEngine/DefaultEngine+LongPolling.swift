@@ -17,7 +17,11 @@ extension DefaultEngine {
             client.state = .idle
             client.packetBuffer.removeAll()
             Logger.engineLogger.log(level: .info, "Polling client connected with ID: \(client.id)")
-            Task { await connectionHandler?(client) }
+            Task {
+                // Note: temporarily, just try to fix the upgrading
+                try? await Task.sleep(milliseconds: 100)
+                await connectionHandler?(client)
+            }
         }
         let resonse = Response(status: .ok, body: Response.Body(stringLiteral: try handshakeResponse.buildBody(with: .open)))
         setCookieIfNeeded(for: resonse)
