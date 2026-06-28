@@ -11,7 +11,7 @@ import Vapor
 // MARK: - Engine
 
 extension DefaultEngine: Engine {
-    public var clients: [Client] { engineClients }
+    @DefaultEngine public var clients: [Client] { engineClients }
 
     public func onPackets(use closure: @escaping @Sendable (Client, [any Packet]) async -> Void) {
         packetsHandler = closure

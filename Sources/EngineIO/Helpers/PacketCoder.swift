@@ -46,7 +46,6 @@ enum PacketCoder {
             case let binaryPacket as BinaryPacket:
                 return "\(Constant.binaryPacketPrefix)\(binaryPacket.base64String ?? "")"
             default:
-                Logger.engineLogger.warning("Packet encoding - invalid packet type")
                 throw PacketError.invalidPacketType
             }
         }.joined(separator: Constant.separator)

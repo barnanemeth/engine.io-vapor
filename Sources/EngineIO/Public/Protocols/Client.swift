@@ -7,7 +7,8 @@
 
 import Foundation
 
-public protocol Client {
+@DefaultEngine
+public protocol Client: Sendable {
     var id: String { get }
     var connectionTime: Date { get }
     var transportType: TransportType { get }

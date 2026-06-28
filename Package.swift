@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.3
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -12,15 +12,15 @@ let package = Package(
         .library(name: "EngineIO", targets: ["EngineIO"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.89.0"),
-        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.121.4"),
+        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.1.4"),
     ],
     targets: [
         .target(
             name: "EngineIO",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
-                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")
             ]
         ),
     ]

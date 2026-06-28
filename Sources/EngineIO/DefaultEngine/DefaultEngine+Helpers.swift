@@ -11,6 +11,7 @@ import Vapor
 // MARK: - Helpers
 
 extension DefaultEngine {
+    @DefaultEngine
     @discardableResult func initClient(
         with id: String,
         handshake: Handshake,
@@ -28,25 +29,28 @@ extension DefaultEngine {
         return client
     }
 
+    @DefaultEngine
     func getClient(for id: String) -> EngineClient? {
         engineClients.first { $0.id == id }
     }
 
-    func removeClient(_ client: EngineClient, reason: DisconnectReason) {
+    @DefaultEngine
+    func removeClient(_ client: EngineClient, reason: DisconnectReason) async {
         guard let index = engineClients.firstIndex(of: client) else { return }
-        Task { await disconnectionHandler?(client, reason) }
+        await disconnectionHandler?(client, reason)
         client.pendingPollTask = nil
         client.webSocketTimerTask = nil
         client.changeChannel.finish()
         engineClients.remove(at: index)
-        Logger.engineLogger.info("Client disconnected \(client.id)")
+        logger.info("Client disconnected \(client.id)")
     }
 
     func closeWebSocketAndRemoveClient(_ client: EngineClient, reason: DisconnectReason) async {
         try? await client.webSocket?.close()
-        removeClient(client, reason: reason)
+        await removeClient(client, reason: reason)
     }
 
+    @DefaultEngine
     func isClientTimedOut(_ client: EngineClient) -> Bool {
         var threshold = Double(configuration.pingInterval + configuration.pingTimeout)
         if case .upgrading = client.state {
@@ -55,20 +59,23 @@ extension DefaultEngine {
         return Date().timeIntervalSince(client.latestClientReactionTime) * 1000 > threshold
     }
 
+    @DefaultEngine
     func checkTransportType(for client: EngineClient) throws {
         if client.transportType == .webSocket {
-            Logger.engineLogger.notice("Polling declined \(client.id)")
+            logger.notice("Polling declined \(client.id)")
             throw Abort(.badRequest)
         }
     }
 
+    @DefaultEngine
     func processPackets(for client: EngineClient, packets: [any Packet]) async {
         client.state = .idle
         await packetsHandler?(client, packets)
     }
 
+    @DefaultEngine
     func sendPackets(for client: EngineClient, packets: [any Packet]) async {
-        Logger.engineLogger.debug("Sending packets for \(client.id), packet count: \(packets.count)")
+        logger.debug("Sending packets for \(client.id), packet count: \(packets.count)")
         client.packetBuffer.append(contentsOf: packets)
         if let webSocket = client.webSocket {
             defer { client.packetBuffer.removeAll() }
@@ -76,7 +83,7 @@ extension DefaultEngine {
                 switch packet {
                 case let textPacket as (any TextPacket): try? await webSocket.send(textPacket.rawData())
                 case let binaryPacket as BinaryPacket: webSocket.send(binaryPacket.rawData())
-                default: Logger.engineLogger.notice("Invalid packet type, \(client.id)")
+                default: logger.notice("Invalid packet type, \(client.id)")
                 }
             }
         }

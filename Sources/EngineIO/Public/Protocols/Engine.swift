@@ -9,7 +9,7 @@ import Foundation
 import Vapor
 
 public protocol Engine: RouteCollection, Actor {
-    var clients: [Client] { get }
+    @DefaultEngine var clients: [Client] { get }
 
     func onConnection(use closure: @Sendable @escaping (Client) async -> Void)
     func onDisconnection(use closure: @Sendable @escaping (Client, DisconnectReason) async -> Void)

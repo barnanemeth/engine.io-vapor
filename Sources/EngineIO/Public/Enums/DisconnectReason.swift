@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum DisconnectReason {
+public enum DisconnectReason: Sendable {
     case pingTimeout
     case forcefully
     case invalidPacket

@@ -9,7 +9,8 @@ import Foundation
 import Vapor
 import AsyncAlgorithms
 
-final class EngineClient {
+@DefaultEngine
+final class EngineClient: Sendable {
 
     // MARK: Properties
 
@@ -50,7 +51,7 @@ final class EngineClient {
 
 // MARK: - Equatable
 
-extension EngineClient: Equatable, Hashable {
+extension EngineClient: @DefaultEngine Equatable, @DefaultEngine Hashable {
     static func == (lhs: EngineClient, rhs: EngineClient) -> Bool {
         lhs.id == rhs.id &&
         lhs.transportType == rhs.transportType &&

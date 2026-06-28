@@ -8,7 +8,7 @@
 import Foundation
 import Vapor
 
-public struct Handshake {
+public struct Handshake: Sendable {
     public let headers: HTTPHeaders
     public let address: String?
     public let isSecure: Bool

@@ -8,7 +8,7 @@
 import Foundation
 import Vapor
 
-public struct CookieOptions {
+public struct CookieOptions: Sendable {
     public var name: String
     public var expires: Date?
     public var maxAge: Int?
