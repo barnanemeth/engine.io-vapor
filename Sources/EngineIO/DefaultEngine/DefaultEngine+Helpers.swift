@@ -11,7 +11,6 @@ import Vapor
 // MARK: - Helpers
 
 extension DefaultEngine {
-    @DefaultEngine
     @discardableResult func initClient(
         with id: String,
         handshake: Handshake,
@@ -20,65 +19,56 @@ extension DefaultEngine {
     ) -> EngineClient {
         let client: EngineClient
         if let packetType {
-            client = EngineClient(id: id, handshake: handshake, transportType: transportType, packetType: packetType)
+            client = EngineClient(id: id, handshake: handshake, transportType: transportType, engine: self, packetType: packetType)
         } else {
-            client = EngineClient(id: id, handshake: handshake, transportType: transportType)
+            client = EngineClient(id: id, handshake: handshake, transportType: transportType, engine: self)
         }
-        client.engine = self
         engineClients.append(client)
         return client
     }
 
-    @DefaultEngine
     func getClient(for id: String) -> EngineClient? {
         engineClients.first { $0.id == id }
     }
 
-    @DefaultEngine
     func removeClient(_ client: EngineClient, reason: DisconnectReason) async {
-        guard let index = engineClients.firstIndex(of: client) else { return }
+        guard let index = engineClients.firstIndex(where: { $0.id == client.id }) else { return }
         await disconnectionHandler?(client, reason)
-        client.pendingPollTask = nil
-        client.webSocketTimerTask = nil
-        client.changeChannel.finish()
+        await client.finish()
         engineClients.remove(at: index)
         logger.info("Client disconnected \(client.id)")
     }
 
     func closeWebSocketAndRemoveClient(_ client: EngineClient, reason: DisconnectReason) async {
-        try? await client.webSocket?.close()
+        try? await client.webSocketSnapshot()?.close()
         await removeClient(client, reason: reason)
     }
 
-    @DefaultEngine
-    func isClientTimedOut(_ client: EngineClient) -> Bool {
+    func isClientTimedOut(_ client: EngineClient) async -> Bool {
         var threshold = Double(configuration.pingInterval + configuration.pingTimeout)
-        if case .upgrading = client.state {
+        if case .upgrading = await client.stateSnapshot() {
             threshold *= Constant.upgradeTimeoutThresholdMultiplier
         }
-        return Date().timeIntervalSince(client.latestClientReactionTime) * 1000 > threshold
+        let latestClientReactionTime = await client.latestClientReactionTimeSnapshot()
+        return Date().timeIntervalSince(latestClientReactionTime) * 1000 > threshold
     }
 
-    @DefaultEngine
-    func checkTransportType(for client: EngineClient) throws {
-        if client.transportType == .webSocket {
+    func checkTransportType(for client: EngineClient) async throws {
+        if await client.transportTypeSnapshot() == .webSocket {
             logger.notice("Polling declined \(client.id)")
             throw Abort(.badRequest)
         }
     }
 
-    @DefaultEngine
     func processPackets(for client: EngineClient, packets: [any Packet]) async {
-        client.state = .idle
+        await client.setState(.idle)
         await packetsHandler?(client, packets)
     }
 
-    @DefaultEngine
     func sendPackets(for client: EngineClient, packets: [any Packet]) async {
         logger.debug("Sending packets for \(client.id), packet count: \(packets.count)")
-        client.packetBuffer.append(contentsOf: packets)
-        if let webSocket = client.webSocket {
-            defer { client.packetBuffer.removeAll() }
+        await client.appendPacketsToBuffer(packets)
+        if let webSocket = await client.webSocketSnapshot() {
             for packet in packets {
                 switch packet {
                 case let textPacket as (any TextPacket): try? await webSocket.send(textPacket.rawData())
@@ -86,6 +76,7 @@ extension DefaultEngine {
                 default: logger.notice("Invalid packet type, \(client.id)")
                 }
             }
+            await client.clearPacketBuffer()
         }
     }
 

@@ -7,11 +7,10 @@
 
 import Foundation
 
-@DefaultEngine
 public protocol Client: Sendable {
     var id: String { get }
     var connectionTime: Date { get }
-    var transportType: TransportType { get }
+    var transportType: TransportType { get async }
     var handshake: Handshake { get }
 
     func sendPackets(_ packets: [any Packet]) async

@@ -8,7 +8,6 @@
 import Foundation
 import Vapor
 
-@globalActor
 public actor DefaultEngine {
 
     // MARK: Inner types
@@ -69,7 +68,7 @@ public actor DefaultEngine {
 
     // MARK: Properties
 
-    @DefaultEngine var engineClients = [EngineClient]()
+    var engineClients = [EngineClient]()
     let logger: Logger
 
     // MARK: Engine
@@ -89,7 +88,7 @@ public actor DefaultEngine {
         logger.logLevel = configuration.logLevel
         self.logger = logger
 
-        Task { await cleanupTimedOutClients() }
+        Task { await cleanupTimedOutClients() } 
     }
 }
 
@@ -110,7 +109,6 @@ extension DefaultEngine: RouteCollection {
 // MARK: - Route handlers
 
 extension DefaultEngine {
-    @DefaultEngine
     private func getHandler(request: Request) async throws -> Response {
         let socketQueryParams = try SocketQueryParams(from: request)
 
@@ -119,7 +117,7 @@ extension DefaultEngine {
         if let id = socketQueryParams.id {
             if request.headers.connection == .uprade && configuration.allowUpgrades {
                 try await runAllowRequest(request: request)
-                return await upgradeToWebSocket(id: id, request: request)
+                return upgradeToWebSocket(id: id, request: request)
             }
 
             let client = try await retreiveClient(for: id)
@@ -128,7 +126,7 @@ extension DefaultEngine {
         }
 
         try await runAllowRequest(request: request)
-        return try openClient(with: socketQueryParams, request: request)
+        return try await openClient(with: socketQueryParams, request: request)
     }
 
     @Sendable private func postHandler(request: Request) async throws -> Response {
@@ -152,8 +150,7 @@ extension DefaultEngine {
 // MARK: - Helpers
 
 extension DefaultEngine {
-    @DefaultEngine
-    private func openClient(with queryParams: SocketQueryParams, request: Request) throws -> Response {
+    private func openClient(with queryParams: SocketQueryParams, request: Request) async throws -> Response {
         let transportTypeUpgrades: [TransportType]
         if configuration.allowUpgrades {
             transportTypeUpgrades = TransportType.allCases.filter { $0 < queryParams.transportType }
@@ -167,7 +164,7 @@ extension DefaultEngine {
 
         switch queryParams.transportType {
         case .polling:
-            return try openLongPolling(
+            return try await openLongPolling(
                 with: handshakeResponse.id,
                 handshake: Handshake(from: request),
                 handshakeResponse: handshakeResponse
@@ -177,16 +174,14 @@ extension DefaultEngine {
         }
     }
 
-    @DefaultEngine
     private func retreiveClient(for id: String) async throws -> EngineClient {
         guard let client = getClient(for: id) else { throw Abort(.badRequest) }
         try await checkClient(client)
         try await checkTimeout(for: client)
-        try checkTransportType(for: client)
+        try await checkTransportType(for: client)
         return client
     }
 
-    @DefaultEngine
     private func checkEngineVersion(queryParams: SocketQueryParams) throws {
         var allowedEngineVersions: [EngineVersion] = [.v4]
         if configuration.allowEIO3 {
@@ -197,31 +192,27 @@ extension DefaultEngine {
         }
     }
 
-    @DefaultEngine
     private func checkClient(_ client: EngineClient) async throws {
-        if client.state == .closed {
+        if await client.stateSnapshot() == .closed {
             await removeClient(client, reason: .invalidSession)
             throw Abort(.badRequest)
         }
     }
 
-    @DefaultEngine
     private func runAllowRequest(request: Request) async throws {
         if let allowRequest = configuration.allowRequest {
             try allowRequest(request)
         }
     }
 
-    @DefaultEngine
     private func checkTimeout(for client: EngineClient) async throws {
-        if isClientTimedOut(client) {
+        if await isClientTimedOut(client) {
             logger.notice("Client timed out \(client.id)")
             await removeClient(client, reason: .pingTimeout)
             throw Abort(.badRequest)
         }
     }
 
-    @DefaultEngine
     private func handleInvalidPacket(for client: EngineClient) async throws {
         logger.notice("Invalid packet from \(client.id)")
         await removeClient(client, reason: .invalidPacket)
@@ -229,11 +220,12 @@ extension DefaultEngine {
     }
 
     private func cleanupTimedOutClients() {
-        Task(priority: .background) { @DefaultEngine in
+        Task(priority: .background) {
             let softTimedOutInterval = (configuration.pingInterval + configuration.pingTimeout) * Constant.softIntervalMultiplier
             while true {
                 for client in self.engineClients {
-                    let difference = Date().timeIntervalSince(client.latestClientReactionTime) * 1000
+                    let latestClientReactionTime = await client.latestClientReactionTimeSnapshot()
+                    let difference = Date().timeIntervalSince(latestClientReactionTime) * 1000
                     guard Int64(difference) > softTimedOutInterval else { continue }
                     logger.notice("Client removed by cleanup \(client.id)")
                     await self.removeClient(client, reason: .pingTimeout)

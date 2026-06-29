@@ -11,30 +11,29 @@ import Vapor
 // MARK: - WebSocket
 
 extension DefaultEngine {
-    @DefaultEngine
     func openWebsocket(with id: String, handshakeResponse: HandshakeResponse, request: Request) -> Response {
-        request.webSocket { @DefaultEngine [unowned self] _, webSocket async in
-            if let client = getClient(for: id), client.transportType == .webSocket {
+        request.webSocket { [unowned self] _, webSocket async in
+            if let client = await getClient(for: id), await client.transportTypeSnapshot() == .webSocket {
                 logger.info("WebSocket - closing websocket due to existing socket, \(id)")
                 try? await webSocket.close()
                 return
             }
 
-            let client = self.initClient(
+            let client = await initClient(
                 with: id,
                 handshake: Handshake(from: request),
                 transportType: .webSocket
             )
 
-            client.webSocket = webSocket
-            client.state = .idle
-            client.latestClientReactionTime = Date()
+            await client.setWebSocket(webSocket)
+            await client.setState(.idle)
+            await client.updateLatestClientReactionTime()
 
             try? await webSocket.send(handshakeResponse.buildBody(with: .open))
             try? await Task.sleep(milliseconds: Constant.initialPingInterval)
             try? await webSocket.send(BasicTextPacket(with: .ping).rawData())
 
-            self.createWebSocketTimer(for: client)
+            await self.createWebSocketTimer(for: client)
 
             // Note: temporarily, just try to fix the upgrading
             try? await Task.sleep(milliseconds: 100)
@@ -46,10 +45,10 @@ extension DefaultEngine {
     }
 
     func upgradeToWebSocket(id: String, request: Request) -> Response {
-        request.webSocket { @DefaultEngine [unowned self] _, webSocket async in
-            guard let client = getClient(for: id) else { return }
+        request.webSocket { [unowned self] _, webSocket async in
+            guard let client = await getClient(for: id) else { return }
 
-            if client.transportType == .webSocket {
+            if await client.transportTypeSnapshot() == .webSocket {
                 logger.info("WebSocket - closing websocket due to existing socket, \(client.id)")
                 try? await webSocket.close()
                 return
@@ -57,14 +56,13 @@ extension DefaultEngine {
 
             logger.info("WebSocket - upgrading started \(client.id)")
 
-            client.webSocket = webSocket
-            client.state = .upgrading(state: .waitingForPing)
+            await client.setWebSocket(webSocket)
+            await client.setState(.upgrading(state: .waitingForPing))
         }
     }
 
-    @DefaultEngine
     func handlePacketData(for client: EngineClient, packetData: PacketData) async throws {
-        client.latestClientReactionTime = Date()
+        await client.updateLatestClientReactionTime()
         do {
             switch packetData {
             case let .binary(byteBuffer):
@@ -85,15 +83,14 @@ extension DefaultEngine {
         }
     }
 
-    @DefaultEngine
     private func handleTextPacket(for client: EngineClient, packet: any TextPacket) async {
         switch packet.type {
         case .pong:
-            handlePongState(for: client)
+            await handlePongState(for: client)
         case .ping:
             await handlePingState(for: client, packet: packet)
         case .upgrade:
-            handleUpgradeState(for: client)
+            await handleUpgradeState(for: client)
         case .message:
             logger.debug("WebSocket - processing packets for \(client.id)")
             await processPackets(for: client, packets: [packet])
@@ -104,47 +101,43 @@ extension DefaultEngine {
         }
     }
 
-    @DefaultEngine
-    private func handlePongState(for client: EngineClient) {
-        guard client.state == .heartbeat(state: .waitingForPong) else { return }
+    private func handlePongState(for client: EngineClient) async {
+        guard await client.stateSnapshot() == .heartbeat(state: .waitingForPong) else { return }
         logger.trace("WebSocket - pong packet received \(client.id)")
-        client.latestClientReactionTime = Date()
-        client.state = .idle
+        await client.updateLatestClientReactionTime()
+        await client.setState(.idle)
     }
 
-    @DefaultEngine
     private func handlePingState(for client: EngineClient, packet: any TextPacket) async {
         logger.debug("WebSocket - upgrading - ping probe received \(client.id)")
-        client.state = .upgrading(state: .waitingForPing.increased())
+        await client.setState(.upgrading(state: .waitingForPing.increased()))
         let pongPacket = BasicTextPacket(with: .pong, data: packet.payload as? String)
-        try? await client.webSocket?.send(pongPacket.rawData())
+        try? await client.webSocketSnapshot()?.send(pongPacket.rawData())
     }
 
-    @DefaultEngine
-    private func handleUpgradeState(for client: EngineClient) {
-        client.transportType = .webSocket
-        client.state = .idle
-        createWebSocketTimer(for: client)
+    private func handleUpgradeState(for client: EngineClient) async {
+        await client.setTransportType(.webSocket)
+        await client.setState(.idle)
+        await createWebSocketTimer(for: client)
         logger.info("WebSocket - upgrading successfully finished \(client.id)")
     }
 
-    @DefaultEngine
-    private func createWebSocketTimer(for client: EngineClient) {
-        let task = Task { @DefaultEngine in
+    private func createWebSocketTimer(for client: EngineClient) async {
+        let task = Task {
             while true {
                 try? await Task.sleep(milliseconds: configuration.pingInterval)
                 guard !Task.isCancelled else { return }
-                if isClientTimedOut(client) {
+                if await isClientTimedOut(client) {
                     logger.info("WebSocket - closing client due to timing out \(client.id)")
                     await closeWebSocketAndRemoveClient(client, reason: .pingTimeout)
                     return
-                } else if client.state < .upgrading(state: .waitingForPing) {
+                } else if await client.stateSnapshot() < .upgrading(state: .waitingForPing) {
                     logger.trace("WebSocket - heartbeat - sending ping packet \(client.id)")
-                    try? await client.webSocket?.send(BasicTextPacket(with: .ping).rawData())
-                    client.state = .heartbeat(state: .waitingForPong)
+                    try? await client.webSocketSnapshot()?.send(BasicTextPacket(with: .ping).rawData())
+                    await client.setState(.heartbeat(state: .waitingForPong))
                 }
             }
         }
-        client.webSocketTimerTask = task
+        await client.setWebSocketTimerTask(task)
     }
 }
